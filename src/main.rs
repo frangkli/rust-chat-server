@@ -1,42 +1,11 @@
 mod handler;
+mod structs;
 mod ws;
 
 use std::{collections::HashMap, convert::Infallible, sync::Arc};
-
-use tokio::sync::{mpsc, Mutex};
-use warp::{filters::ws::Message, reject::Rejection, Error, Filter};
-
-#[derive(Clone)]
-pub struct Client {
-  pub user_id: usize,
-  pub topics: Vec<String>,
-  pub sender: Option<mpsc::UnboundedSender<std::result::Result<Message, Error>>>,
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct RegisterRequest {
-  user_id: usize,
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct RegisterResponse {
-  url: String,
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct Event {
-  topic: String,
-  user_id: Option<usize>,
-  message: String,
-}
-
-#[derive(serde::Deserialize, serde::Serialize)]
-pub struct TopicsRequest {
-  topics: Vec<String>,
-}
-
-type Result<T> = std::result::Result<T, Rejection>;
-type Clients = Arc<Mutex<HashMap<String, Client>>>;
+use structs::Clients;
+use tokio::sync::Mutex;
+use warp::Filter;
 
 #[tokio::main]
 async fn main() {
@@ -46,28 +15,27 @@ async fn main() {
   let health_route = warp::path!("health").and_then(handler::health_handler);
 
   // POST /register
-  // DELETE  /register/{client_id}
-  let register = warp::path("register");
-  let register_routes = register
+  let register_route = warp::path("register")
     .and(warp::post())
     .and(warp::body::json())
     .and(with_clients(clients.clone()))
-    .and_then(handler::register_handler)
-    .or(
-      register
-        .and(warp::delete())
-        .and(warp::path::param())
-        .and(with_clients(clients.clone()))
-        .and_then(handler::unregister_handler),
-    );
+    .and_then(handler::register_handler);
+
+  // DELETE  /register/{client_id}
+  let unregister_route = warp::path("register")
+    .and(warp::delete())
+    .and(warp::path::param())
+    .and(with_clients(clients.clone()))
+    .and_then(handler::unregister_handler);
 
   // POST /publish
-  let publish = warp::path!("publish")
+  let publish_route = warp::path!("publish")
+    .and(warp::post())
     .and(warp::body::json())
     .and(with_clients(clients.clone()))
     .and_then(handler::publish_handler);
 
-  // GET /ws
+  // WS /ws/{uuid}
   let ws_route = warp::path("ws")
     .and(warp::ws())
     .and(warp::path::param())
@@ -75,11 +43,13 @@ async fn main() {
     .and_then(handler::ws_handler);
 
   let routes = health_route
-    .or(register_routes)
-    .or(publish)
+    .or(register_route)
+    .or(unregister_route)
+    .or(publish_route)
     .or(ws_route)
     .with(warp::cors().allow_any_origin());
 
+  // localhost:8000
   warp::serve(routes).run(([127, 0, 0, 1], 8000)).await;
 }
 

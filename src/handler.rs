@@ -7,9 +7,8 @@ use warp::{
   ws::Ws,
 };
 
-use crate::{
-  ws::client_connection, Client, Clients, Event, RegisterRequest, RegisterResponse, Result,
-};
+use crate::structs::{Client, Clients, Event, RegisterRequest, RegisterResponse, Result};
+use crate::ws::client_connection;
 
 pub async fn register_handler(body: RegisterRequest, clients: Clients) -> Result<impl Reply> {
   let user_id = body.user_id;

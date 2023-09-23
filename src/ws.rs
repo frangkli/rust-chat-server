@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::{filters::ws::Message, ws::WebSocket};
 
-use crate::{Client, Clients, TopicsRequest};
+use crate::structs::{Client, Clients, TopicsRequest};
 
 pub async fn client_connection(ws: WebSocket, id: String, clients: Clients, mut client: Client) {
   let (client_ws_sender, mut client_ws_rcv) = ws.split();
